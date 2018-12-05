@@ -13,7 +13,7 @@ class Web::PushNotificationWorker
   rescue Webpush::InvalidSubscription, Webpush::ExpiredSubscription
     subscription.destroy!
   rescue Webpush::ResponseError => e
-    subscription.destroy! if (400..499).include?(e.response.code.to_i)
+    subscription.destroy! if (400..499).cover?(e.response.code.to_i)
   rescue ActiveRecord::RecordNotFound
     true
   end
