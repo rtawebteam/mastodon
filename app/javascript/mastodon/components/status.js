@@ -232,7 +232,7 @@ class Status extends ImmutablePureComponent {
             media={status.get('media_attachments')}
           />
         );
-      } else if (status.getIn(['media_attachments', 0, 'type']) === 'video') {
+      } else if (['audio', 'video'].indexOf(status.getIn(['media_attachments', 0, 'type'])) !== -1) {
         const video = status.getIn(['media_attachments', 0]);
 
         media = (
