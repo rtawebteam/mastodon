@@ -4,6 +4,132 @@ require 'tty-command'
 require 'tty-prompt'
 
 namespace :mastodon do
+
+  desc 'Execute daily tasks (deprecated)'
+  task :daily do
+    # No-op
+    # All of these tasks are now executed via sidekiq-scheduler
+  end
+
+  desc 'Turn a user into an admin, identified by the USERNAME environment variable'
+  task make_admin: :environment do
+    include RoutingHelper
+
+    account_username = ENV.fetch('USERNAME')
+    user             = User.joins(:account).where(accounts: { username: account_username })
+
+    if user.present?
+      user.update(admin: true)
+      puts "Congrats! #{account_username} is now an admin. \\o/\nNavigate to #{edit_admin_settings_url} to get started"
+    else
+      puts "User could not be found; please make sure an account with the `#{account_username}` username exists."
+    end
+  end
+
+  desc 'Turn a user into a moderator, identified by the USERNAME environment variable'
+  task make_mod: :environment do
+    account_username = ENV.fetch('USERNAME')
+    user             = User.joins(:account).where(accounts: { username: account_username })
+
+    if user.present?
+      user.update(moderator: true)
+      puts "Congrats! #{account_username} is now a moderator \\o/"
+    else
+      puts "User could not be found; please make sure an account with the `#{account_username}` username exists."
+    end
+  end
+
+  desc 'Remove admin and moderator privileges from user identified by the USERNAME environment variable'
+  task revoke_staff: :environment do
+    account_username = ENV.fetch('USERNAME')
+    user             = User.joins(:account).where(accounts: { username: account_username })
+
+    if user.present?
+      user.update(moderator: false, admin: false)
+      puts "#{account_username} is no longer admin or moderator."
+    else
+      puts "User could not be found; please make sure an account with the `#{account_username}` username exists."
+    end
+  end
+
+  desc 'Manually confirms a user with associated user email address stored in USER_EMAIL environment variable.'
+  task confirm_email: :environment do
+    email = ENV.fetch('USER_EMAIL')
+    user  = User.find_by(email: email)
+
+    if user
+      user.update(confirmed_at: Time.now.utc)
+      puts "#{email} confirmed"
+    else
+      abort "#{email} not found"
+    end
+  end
+   #RTA - change_password function
+  desc 'Manually confirms a user with associated user email address stored in USER_EMAIL environment variable.'
+  task change_password: :environment do
+    email = ENV.fetch('USER_EMAIL')
+    user  = User.find_by(email: email)
+    
+    if user
+      print 'Enter new password: '
+      new_password = STDIN.gets.chomp
+      require 'bcrypt'
+      new_password = BCrypt::Password.create(new_password)
+      user.update(encrypted_password: new_password)
+      puts "Password has been changed"
+    else
+      abort "#{email} not found"
+    end
+  end
+  #RTA - change_display_name function
+  desc 'Manually confirms a user with associated user email address stored in USER_EMAIL environment variable.'
+  task change_display_name: :environment do
+    username = ENV.fetch('USERNAME')
+    account  = Account.find_by(username: username)    
+    if account
+      print 'Enter new display name: '
+      display_name = STDIN.gets.chomp      
+      account.update(display_name: display_name)
+      puts "Display name has been changed"
+    else
+      abort "#{username} not found"
+    end
+  end
+  #RTA - customize add_user function - Enter password manual
+  desc 'Add a user by providing their email, username and initial password.' \
+       'The user will receive a confirmation email, then they must reset their password before logging in.'
+  task add_user: :environment do
+    print 'Enter email: '
+    email = STDIN.gets.chomp
+
+    print 'Enter username: '
+    username = STDIN.gets.chomp
+
+    print 'Enter password: '
+    password = STDIN.gets.chomp
+
+    print 'Create user and send them confirmation mail [y/N]: '
+    confirm = STDIN.gets.chomp
+    puts
+
+    if confirm.casecmp('y').zero?
+      password = password
+      user = User.new(email: email, password: password, account_attributes: { username: username })
+      if user.save
+        puts 'User added and confirmation mail sent to user\'s email address.'
+        puts "Here is the random password generated for the user: #{password}"
+      else
+        puts 'Following errors occured while creating new user:'
+        user.errors.each do |key, val|
+          puts "#{key}: #{val}"
+        end
+      end
+    else
+      puts 'Aborted by user.'
+    end
+    puts
+  end
+
   desc 'Configure the instance for production use'
   task :setup do
     prompt = TTY::Prompt.new
